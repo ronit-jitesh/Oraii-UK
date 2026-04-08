@@ -1,0 +1,50 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@oraii/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@oraii/core/*": [
+        "../../packages/core/src/*.ts"
+      ],
+      "@oraii/ai": [
+        "../../packages/ai/src/index.ts"
+      ],
+      "@oraii/ai/*": [
+        "../../packages/ai/src/*.ts"
+      ],
+      "@oraii/compliance": [
+        "../../packages/compliance/src/index.ts"
+      ],
+      "@oraii/compliance/*": [
+        "../../packages/compliance/src/*.ts"
+      ],
+      "@oraii/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@oraii/ui/*": [
+        "../../packages/ui/src/*.ts"
+      ]
+    },
+    "allowJs": true,
+    "isolatedModules": true
+  },
+  "include": [
+    ".",
+    "../../packages/ai/src",
+    "../../packages/compliance/src",
+    "../../packages/core/src",
+    "../../packages/ui/src",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
+}

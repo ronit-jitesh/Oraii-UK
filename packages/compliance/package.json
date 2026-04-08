@@ -1,0 +1,12 @@
+{
+  "name": "@oraii/compliance",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./gdpr": "./src/gdpr/index.ts",
+    "./dcb0129": "./src/dcb0129/index.ts",
+    "./snomed": "./src/snomed/index.ts"
+  }
+}

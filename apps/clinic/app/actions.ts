@@ -51,11 +51,10 @@ export async function writeAuditLog(entry: {
     await svc.from('audit_log').insert({
       therapist_id:  therapistId,
       patient_id:    entry.patientId   || null,
-      session_id:    entry.sessionId   || null,
       action:        entry.action,
       resource_type: entry.resourceType,
       resource_id:   entry.resourceId  || null,
-      metadata:      entry.metadata    || {},
+      metadata:      { ...(entry.metadata || {}), ...(entry.sessionId ? { session_id: entry.sessionId } : {}) },
     })
   } catch (e) {
     // Audit failure must never surface to the user or block clinical work

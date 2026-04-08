@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "mcp__acfa01a4-7351-4044-9484-c2d3921c7f62__list_projects",
+      "mcp__acfa01a4-7351-4044-9484-c2d3921c7f62__execute_sql",
+      "mcp__acfa01a4-7351-4044-9484-c2d3921c7f62__list_tables"
     ]
   }
 }

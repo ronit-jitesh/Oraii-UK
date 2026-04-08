@@ -8,7 +8,6 @@ interface AuditEntry {
   resource_type: string
   resource_id: string | null
   patient_id: string | null
-  session_id: string | null
   metadata: Record<string, any>
   created_at: string
 }
@@ -54,7 +53,7 @@ export default function AuditPage() {
 
       let query = supabase
         .from('audit_log')
-        .select('id, action, resource_type, resource_id, patient_id, session_id, metadata, created_at')
+        .select('id, action, resource_type, resource_id, patient_id, metadata, created_at')
         .eq('therapist_id', therapist.id)
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
@@ -136,7 +135,7 @@ export default function AuditPage() {
             if (meta.instrument) details.push(meta.instrument)
             if (meta.score !== undefined) details.push(`Score: ${meta.score}`)
             if (meta.format) details.push(meta.format.toUpperCase())
-            if (meta.consent_given !== undefined) details.push(meta.consent_given ? 'Granted' : 'Withdrawn')
+            if (meta.consent_given !== undefined) details.push(meta.consent_given ? 'Consent granted' : 'No consent')
             if (meta.label) details.push(meta.label)
 
             return (

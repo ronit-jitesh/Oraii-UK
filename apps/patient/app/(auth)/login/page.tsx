@@ -16,7 +16,8 @@ export default function PatientLogin() {
     setError(null)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError(error.message)
+      // Normalised message — never reveal whether email exists (prevents user enumeration)
+      setError('Incorrect email or password. Please try again.')
       setLoading(false)
     } else {
       window.location.href = '/home'
@@ -166,7 +167,7 @@ export default function PatientLogin() {
       <div className="plogin-root">
         <div className="plogin-card">
           <div className="plogin-header">
-            <span className="plogin-logo">ORAII</span>
+            <img src="/logoo.png" alt="ORAII" style={{ height: 48, width: 'auto', objectFit: 'contain', marginBottom: 4 }} />
             <span className="plogin-tagline">Your between-session wellness companion</span>
           </div>
 
@@ -178,8 +179,9 @@ export default function PatientLogin() {
               {error && <div className="error-msg">{error}</div>}
 
               <div className="form-group">
-                <label className="form-label">Email address</label>
+                <label htmlFor="login-email" className="form-label">Email address</label>
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -191,8 +193,9 @@ export default function PatientLogin() {
               </div>
 
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Password</label>
+                <label htmlFor="login-password" className="form-label">Password</label>
                 <input
+                  id="login-password"
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}

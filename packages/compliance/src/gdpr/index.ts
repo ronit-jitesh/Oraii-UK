@@ -42,7 +42,7 @@ Your therapist links this reference to your identity in their own records.
 What we process:
 • Your wellness journal entries (if you create them)
 • Mood and wellbeing tracking data you enter
-• Chat messages with Daji, our AI wellness companion
+• Chat messages with ORAII, our AI wellness companion
 • Your safety plan (created with your therapist)
 
 We do not share your data with third parties except as required to deliver the service

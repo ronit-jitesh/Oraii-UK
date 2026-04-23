@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 140" fill="none">
+  <!-- Face outline -->
+  <path d="M 62 20 C 42 22 28 40 30 62 C 28 85 44 105 62 115 C 72 120 80 118 84 112" stroke="#2D8B7A" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <!-- Heart -->
+  <path d="M 84 112 C 88 95 95 75 88 58 C 82 44 70 38 60 46 C 50 38 36 44 38 62 C 36 80 52 100 84 112 Z" stroke="url(#heartGrad)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+  <!-- Stem -->
+  <path d="M 84 112 C 80 128 75 135 68 138" stroke="url(#stemGrad)" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Curl top -->
+  <path d="M 62 20 C 65 10 72 6 78 12" stroke="#2D8B7A" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <defs>
+    <linearGradient id="heartGrad" x1="38" y1="46" x2="88" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2D8B7A"/>
+      <stop offset="100%" stop-color="#C0583A"/>
+    </linearGradient>
+    <linearGradient id="stemGrad" x1="84" y1="112" x2="68" y2="138" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#C0583A"/>
+      <stop offset="100%" stop-color="#8B2A1A"/>
+    </linearGradient>
+  </defs>
+  <!-- orAii text -->
+  <text x="110" y="95" font-family="Georgia, serif" font-size="58" font-weight="400" fill="#2D8B7A">or</text>
+  <text x="187" y="95" font-family="Georgia, serif" font-size="58" font-weight="400" font-style="italic" fill="#C0583A">A</text>
+  <text x="224" y="95" font-family="Georgia, serif" font-size="58" font-weight="400" fill="#2D8B7A">ii</text>
+</svg>

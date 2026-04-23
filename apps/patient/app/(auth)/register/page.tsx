@@ -196,7 +196,7 @@ export default function PatientRegister() {
       <div className="preg-root">
         <div className="preg-card">
           <div className="preg-header">
-            <span className="preg-logo">ORAII</span>
+            <img src="/logoo.png" alt="ORAII" style={{ height: 48, width: 'auto', objectFit: 'contain', marginBottom: 4 }} />
             <span className="preg-tagline">Your between-session wellness companion</span>
           </div>
 
@@ -214,8 +214,9 @@ export default function PatientRegister() {
                 {error && <div className="error-msg">{error}</div>}
 
                 <div className="form-group">
-                  <label className="form-label">Email address</label>
+                  <label htmlFor="reg-email" className="form-label">Email address</label>
                   <input
+                    id="reg-email"
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
@@ -227,8 +228,9 @@ export default function PatientRegister() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Password</label>
+                  <label htmlFor="reg-password" className="form-label">Password</label>
                   <input
+                    id="reg-password"
                     type="password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
@@ -240,8 +242,9 @@ export default function PatientRegister() {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label">Confirm password</label>
+                  <label htmlFor="reg-confirm" className="form-label">Confirm password</label>
                   <input
+                    id="reg-confirm"
                     type="password"
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}

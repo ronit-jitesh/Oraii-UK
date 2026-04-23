@@ -127,8 +127,8 @@ export const HAZARD_LOG: Hazard[] = [
   },
   {
     id: 'H004',
-    title: 'Daji chatbot fails to escalate patient in crisis',
-    description: 'Patient expresses suicidal ideation to Daji; chatbot does not detect crisis and continues normal conversation without providing crisis resources',
+    title: 'ORAII chatbot fails to escalate patient in crisis',
+    description: 'Patient expresses suicidal ideation to ORAII; chatbot does not detect crisis and continues normal conversation without providing crisis resources',
     cause: 'Crisis keyword matching misses indirect expression; GPT-4o system prompt not followed correctly',
     effect: 'Patient in crisis does not receive signposting to emergency services; potential harm',
     severity: 'catastrophic',
@@ -137,7 +137,7 @@ export const HAZARD_LOG: Hazard[] = [
     controls: [
       'Dual-layer crisis detection: keyword matching in application code + GPT-4o system prompt instruction',
       'Crisis resources displayed in UI whenever crisisDetected flag is true — not dependent on AI response content',
-      'Daji explicitly told not to continue casual conversation after crisis disclosure',
+      'ORAII explicitly told not to continue casual conversation after crisis disclosure',
       'Regular red-team testing of crisis scenarios',
       'Online Safety Act 2023 compliance review — content moderation obligations',
     ],

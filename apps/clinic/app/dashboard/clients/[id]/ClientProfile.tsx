@@ -31,8 +31,8 @@ const MEASURE_CFG: Record<string, { max: number; bands: [number, string, string]
   'GAD-7':  { max: 21, bands: [[4,'Minimal','#065F46'],[9,'Mild','#1E40AF'],[14,'Moderate','#92400E'],[21,'Severe','#991B1B']] },
   'CORE-10':{ max: 40, bands: [[10,'Low','#065F46'],[15,'Low-mod','#1E40AF'],[21,'Moderate','#92400E'],[40,'High','#991B1B']] },
 }
-function getBandColor(m: string, s: number) { const cfg = MEASURE_CFG[m]; if (!cfg) return '#8B8680'; return (cfg.bands.find(([max]) => s <= max) || cfg.bands[cfg.bands.length-1])[2] }
-function getBandLabel(m: string, s: number) { const cfg = MEASURE_CFG[m]; if (!cfg) return ''; return (cfg.bands.find(([max]) => s <= max) || cfg.bands[cfg.bands.length-1])[1] }
+function getBandColor(m: string, s: number) { const cfg = MEASURE_CFG[m]; if (!cfg) return '#8B8680'; const b = cfg.bands.find(([max]) => s <= max) ?? cfg.bands[cfg.bands.length - 1]; return b?.[2] ?? '#8B8680' }
+function getBandLabel(m: string, s: number) { const cfg = MEASURE_CFG[m]; if (!cfg) return ''; const b = cfg.bands.find(([max]) => s <= max) ?? cfg.bands[cfg.bands.length - 1]; return b?.[1] ?? '' }
 
 function Ico({ d, size = 16, color = 'currentColor' }: { d: string; size?: number; color?: string }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d={d} /></svg>
@@ -86,7 +86,7 @@ export default function ClientProfile({ patient, riskHistory, outcomeHistory, se
   const phq9Latest = [...outcomeHistory].reverse().find(o => o.measure === 'PHQ-9')
   const gad7Latest = [...outcomeHistory].reverse().find(o => o.measure === 'GAD-7')
   const PALETTE    = [{ bg: '#D8EDDF', text: '#1B4332' }, { bg: '#DBEAFE', text: '#1E3A8A' }, { bg: '#EDE9FE', text: '#4C1D95' }, { bg: '#FCE7F3', text: '#831843' }, { bg: '#FEF3C7', text: '#78350F' }]
-  const ac         = PALETTE[(patient.display_label || 'A').charCodeAt(0) % 5]
+  const ac         = PALETTE[(patient.display_label || 'A').charCodeAt(0) % 5] ?? PALETTE[0]!
 
   return (
     <div style={{ padding: '2rem 2.5rem 3rem', maxWidth: 900 }}>
@@ -97,7 +97,7 @@ export default function ClientProfile({ patient, riskHistory, outcomeHistory, se
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, marginBottom: '1.75rem' }}>
         <div style={{ width: 60, height: 60, borderRadius: 18, background: ac.bg, color: ac.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Lora, Georgia, serif', fontSize: '1.5rem', fontWeight: 700, flexShrink: 0 }}>
-          {(patient.display_label || 'A')[0].toUpperCase()}
+          {(patient.display_label || 'A')[0]?.toUpperCase() ?? 'A'}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

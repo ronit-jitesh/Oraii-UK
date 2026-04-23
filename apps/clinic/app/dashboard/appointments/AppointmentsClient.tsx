@@ -24,7 +24,7 @@ function fmtDate(iso: string) {
 }
 
 function ApptCard({ a }: { a: Appointment }) {
-  const s = STATUS_MAP[a.status] || STATUS_MAP.pending
+  const s = STATUS_MAP[a.status] ?? STATUS_MAP['pending']!
   const { day, mon, time } = fmtDate(a.time)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: '#fff', border: '0.5px solid #E2DDD5', borderRadius: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s, transform 0.2s' }}

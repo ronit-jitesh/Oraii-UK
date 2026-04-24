@@ -1,6 +1,13 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '../utils/supabase/server'
+import {
+  classifyPHQ9,
+  classifyGAD7,
+  classifyTextForRisk,
+  createTriageFlag,
+  type TriageTriggerSource,
+} from '@oraii/core/triage'
 
 function getSvc() {
   return createClient(
@@ -67,6 +74,53 @@ async function resolvePatientId(): Promise<string | null> {
 async function getNickname(): Promise<string> {
   const user = await getAuthUser()
   return user?.user_metadata?.nickname || 'there'
+}
+
+/**
+ * Resolve the patient's therapist_id (null if patient is independent).
+ * Used for triage-flag creation — we only raise flags for patients
+ * who are linked to a clinician.
+ */
+async function resolvePatientTherapistId(
+  patientId: string,
+): Promise<string | null> {
+  const svc = getSvc()
+  const { data } = await svc
+    .from('patients')
+    .select('therapist_id')
+    .eq('id', patientId)
+    .single()
+  return data?.therapist_id ?? null
+}
+
+/**
+ * Attempt to raise a triage flag for a clinically significant event.
+ * Silently no-ops if the patient has no linked therapist (independent user).
+ * This never throws — flag failures must not block the patient's own write.
+ */
+async function tryRaiseTriageFlag(opts: {
+  patientId: string
+  verdict: ReturnType<typeof classifyPHQ9> | ReturnType<typeof classifyGAD7> | ReturnType<typeof classifyTextForRisk>
+  triggerSource: TriageTriggerSource
+  sourceId?: string | null
+  triggerData?: Record<string, unknown>
+}): Promise<void> {
+  try {
+    if (!opts.verdict) return
+    const therapistId = await resolvePatientTherapistId(opts.patientId)
+    if (!therapistId) return
+    const svc = getSvc()
+    await createTriageFlag(svc as unknown as Parameters<typeof createTriageFlag>[0], {
+      patientId:     opts.patientId,
+      therapistId,
+      verdict:       opts.verdict,
+      triggerSource: opts.triggerSource,
+      sourceId:      opts.sourceId ?? null,
+      triggerData:   opts.triggerData ?? {},
+    })
+  } catch (err) {
+    console.error('[tryRaiseTriageFlag] suppressed:', err)
+  }
 }
 
 // ── Profile ─────────────────────────────────────────────────────────────
@@ -158,7 +212,33 @@ export async function saveSelfOutcomeScore(input: {
     metadata: { measure: input.measure, score: input.score },
   })
 
-  return { success: true, id: data?.id }
+  // ── Triage flag generation ─────────────────────────────────────
+  // Classify the score against clinical thresholds. If the verdict
+  // warrants a flag (amber/red), raise it against the linked therapist.
+  // Independent patients with no therapist are silently skipped.
+  let verdict: ReturnType<typeof classifyPHQ9> | ReturnType<typeof classifyGAD7> | null = null
+  if (input.measure === 'PHQ-9') {
+    // Q9 key may be 'q9', '9', or the ninth response — try a few shapes
+    const q9 =
+      typeof input.responses?.['q9'] === 'number' ? input.responses['q9']
+      : typeof input.responses?.['9'] === 'number' ? input.responses['9']
+      : undefined
+    verdict = classifyPHQ9(input.score, q9)
+  } else if (input.measure === 'GAD-7') {
+    verdict = classifyGAD7(input.score)
+  }
+
+  if (verdict) {
+    await tryRaiseTriageFlag({
+      patientId,
+      verdict,
+      triggerSource: 'outcome_scores',
+      sourceId:      data?.id,
+      triggerData:   { measure: input.measure, score: input.score, severity: input.severity },
+    })
+  }
+
+  return { success: true, id: data?.id, flagged: !!verdict }
 }
 
 // ── Appointments ────────────────────────────────────────────────────────
@@ -841,15 +921,40 @@ export async function saveChatSession(messages: { role: string; content: string 
     therapist_can_view: false,
   }
 
+  let sessionId: string | null = null
   if (existing?.id) {
+    sessionId = existing.id
     const { error } = await svc
       .from('journal_entries')
       .update({ content: JSON.stringify(messages) })
       .eq('id', existing.id)
     if (error) return { error: error.message }
   } else {
-    const { error } = await svc.from('journal_entries').insert(payload)
+    const { data: inserted, error } = await svc
+      .from('journal_entries')
+      .insert(payload)
+      .select('id')
+      .single()
     if (error) return { error: error.message }
+    sessionId = inserted?.id ?? null
+  }
+
+  // ── Chat-risk keyword scan ────────────────────────────────────
+  // Scan only the LAST user message — flagging every historical
+  // message would spam the clinician queue. The verdict surfaces
+  // the first matching keyword.
+  const lastUser = [...messages].reverse().find(m => m.role === 'user')
+  if (lastUser?.content) {
+    const verdict = classifyTextForRisk(lastUser.content)
+    if (verdict) {
+      await tryRaiseTriageFlag({
+        patientId,
+        verdict,
+        triggerSource: 'chat_session',
+        sourceId:      sessionId,
+        triggerData:   { excerpt: lastUser.content.slice(0, 200) },
+      })
+    }
   }
 
   return { success: true }

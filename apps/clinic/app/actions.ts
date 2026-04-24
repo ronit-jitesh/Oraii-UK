@@ -422,3 +422,216 @@ export async function savePatientConsent(data: {
     return { success: true }
   } catch (e) { return { error: `Failed: ${e instanceof Error ? e.message : String(e)}` } }
 }
+
+// ═════════════════════════════════════════════════════════════════════
+// TRIAGE QUEUE — the clinician's red/amber/green feed of patient events
+// ═════════════════════════════════════════════════════════════════════
+
+export interface TriageFlagRow {
+  id: string
+  patient_id: string
+  therapist_id: string
+  severity: 'red' | 'amber' | 'green'
+  flag_type: string
+  trigger_source: string
+  source_id: string | null
+  summary: string
+  trigger_data: Record<string, unknown>
+  status: 'open' | 'acknowledged' | 'resolved'
+  acknowledged_at: string | null
+  resolved_at: string | null
+  resolution_note: string | null
+  created_at: string
+  patient_label: string
+}
+
+/**
+ * List triage flags for the signed-in therapist.
+ * Default: open + acknowledged, sorted red > amber > green, newest first.
+ */
+export async function listTriageFlags(filter: {
+  includeResolved?: boolean
+  patientId?: string
+} = {}): Promise<{ flags: TriageFlagRow[]; counts: { red: number; amber: number; green: number; total: number } }> {
+  try {
+    const therapistId = await getOrCreateTherapistId()
+    if (!therapistId) return { flags: [], counts: { red: 0, amber: 0, green: 0, total: 0 } }
+    const svc = getSvc()
+
+    let q = svc
+      .from('triage_flags')
+      .select('id, patient_id, therapist_id, severity, flag_type, trigger_source, source_id, summary, trigger_data, status, acknowledged_at, resolved_at, resolution_note, created_at, patients!inner(display_label)')
+      .eq('therapist_id', therapistId)
+
+    if (!filter.includeResolved) q = q.neq('status', 'resolved')
+    if (filter.patientId)        q = q.eq('patient_id', filter.patientId)
+
+    const { data, error } = await q.order('created_at', { ascending: false })
+    if (error) return { flags: [], counts: { red: 0, amber: 0, green: 0, total: 0 } }
+
+    const rows: TriageFlagRow[] = (data || []).map((r: unknown) => {
+      const row = r as Record<string, unknown>
+      const patient = row.patients as { display_label?: string } | null
+      return {
+        id:              String(row.id),
+        patient_id:      String(row.patient_id),
+        therapist_id:    String(row.therapist_id),
+        severity:        row.severity as 'red' | 'amber' | 'green',
+        flag_type:       String(row.flag_type),
+        trigger_source:  String(row.trigger_source),
+        source_id:       (row.source_id as string | null) ?? null,
+        summary:         String(row.summary),
+        trigger_data:    (row.trigger_data as Record<string, unknown>) ?? {},
+        status:          row.status as 'open' | 'acknowledged' | 'resolved',
+        acknowledged_at: (row.acknowledged_at as string | null) ?? null,
+        resolved_at:     (row.resolved_at as string | null) ?? null,
+        resolution_note: (row.resolution_note as string | null) ?? null,
+        created_at:      String(row.created_at),
+        patient_label:   patient?.display_label || 'Patient',
+      }
+    })
+
+    // Client-side severity sort (Supabase can't sort by enum rank easily)
+    const rank = (s: string) => (s === 'red' ? 0 : s === 'amber' ? 1 : 2)
+    rows.sort((a, b) => rank(a.severity) - rank(b.severity) || b.created_at.localeCompare(a.created_at))
+
+    const counts = {
+      red:   rows.filter(r => r.severity === 'red'   && r.status !== 'resolved').length,
+      amber: rows.filter(r => r.severity === 'amber' && r.status !== 'resolved').length,
+      green: rows.filter(r => r.severity === 'green' && r.status !== 'resolved').length,
+      total: rows.filter(r => r.status !== 'resolved').length,
+    }
+
+    return { flags: rows, counts }
+  } catch (e) {
+    console.error('[listTriageFlags]', e)
+    return { flags: [], counts: { red: 0, amber: 0, green: 0, total: 0 } }
+  }
+}
+
+/**
+ * Mark a flag as acknowledged (clinician has seen it).
+ * The flag remains in the queue but gets a muted style.
+ */
+export async function acknowledgeTriageFlag(flagId: string): Promise<{ success?: true; error?: string }> {
+  try {
+    const therapistId = await getOrCreateTherapistId()
+    if (!therapistId) return { error: 'Not authenticated' }
+    const svc = getSvc()
+
+    const { error } = await svc
+      .from('triage_flags')
+      .update({
+        status: 'acknowledged',
+        acknowledged_at: new Date().toISOString(),
+        acknowledged_by: therapistId,
+      })
+      .eq('id', flagId)
+      .eq('therapist_id', therapistId)
+
+    if (error) return { error: error.message }
+
+    await writeAuditLog({
+      action: 'ACKNOWLEDGE_TRIAGE_FLAG',
+      resourceType: 'triage_flag',
+      resourceId: flagId,
+    })
+
+    revalidatePath('/dashboard/queue')
+    return { success: true }
+  } catch (e) {
+    return { error: `Failed: ${e instanceof Error ? e.message : String(e)}` }
+  }
+}
+
+/**
+ * Resolve a flag — clinician has taken action. Optional note for audit trail.
+ */
+export async function resolveTriageFlag(flagId: string, note?: string): Promise<{ success?: true; error?: string }> {
+  try {
+    const therapistId = await getOrCreateTherapistId()
+    if (!therapistId) return { error: 'Not authenticated' }
+    const svc = getSvc()
+
+    const { error } = await svc
+      .from('triage_flags')
+      .update({
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+        resolved_by: therapistId,
+        resolution_note: note?.trim() || null,
+      })
+      .eq('id', flagId)
+      .eq('therapist_id', therapistId)
+
+    if (error) return { error: error.message }
+
+    await writeAuditLog({
+      action: 'RESOLVE_TRIAGE_FLAG',
+      resourceType: 'triage_flag',
+      resourceId: flagId,
+      metadata: { note: note?.slice(0, 200) },
+    })
+
+    revalidatePath('/dashboard/queue')
+    return { success: true }
+  } catch (e) {
+    return { error: `Failed: ${e instanceof Error ? e.message : String(e)}` }
+  }
+}
+
+/**
+ * Manually create a flag from the clinician side (e.g. after reading
+ * a journal entry or receiving an out-of-band patient message).
+ */
+export async function createManualTriageFlag(input: {
+  patientId: string
+  severity: 'red' | 'amber' | 'green'
+  summary: string
+}): Promise<{ success?: true; error?: string; id?: string }> {
+  try {
+    const therapistId = await getOrCreateTherapistId()
+    if (!therapistId) return { error: 'Not authenticated' }
+    const svc = getSvc()
+
+    // Verify therapist owns this patient
+    const { data: patient } = await svc
+      .from('patients')
+      .select('id, therapist_id')
+      .eq('id', input.patientId)
+      .single()
+    if (!patient) return { error: 'Patient not found' }
+    if (patient.therapist_id !== therapistId) return { error: 'Not authorised' }
+
+    const { data, error } = await svc
+      .from('triage_flags')
+      .insert({
+        patient_id:     input.patientId,
+        therapist_id:   therapistId,
+        severity:       input.severity,
+        flag_type:      'manual',
+        summary:        input.summary.slice(0, 240),
+        trigger_source: 'manual',
+        trigger_data:   {},
+        status:         'open',
+      })
+      .select('id')
+      .single()
+
+    if (error) return { error: error.message }
+
+    await writeAuditLog({
+      action: 'CREATE_MANUAL_TRIAGE_FLAG',
+      resourceType: 'triage_flag',
+      resourceId: data?.id,
+      patientId: input.patientId,
+      metadata: { severity: input.severity },
+    })
+
+    revalidatePath('/dashboard/queue')
+    return { success: true, id: data?.id }
+  } catch (e) {
+    return { error: `Failed: ${e instanceof Error ? e.message : String(e)}` }
+  }
+}
+

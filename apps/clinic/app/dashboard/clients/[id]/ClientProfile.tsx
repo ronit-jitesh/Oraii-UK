@@ -18,7 +18,12 @@ interface RiskRow {
 interface OutcomeRow { id: string; measure: string; score: number; severity: string | null; completed_at: string }
 interface SessionRow { id: string; session_date: string; status: string; note_format: string | null; duration_minutes: number | null }
 interface SafetyRow { id: string; version: number; created_at: string; warning_signs: string[]; internal_coping_strategies: string[]; crisis_contacts: any[] }
-interface Props { patient: Patient; riskHistory: RiskRow[]; outcomeHistory: OutcomeRow[]; sessions: SessionRow[]; safetyPlans: SafetyRow[] }
+interface TriageFlag {
+  id: string; severity: 'red' | 'amber' | 'green'; flag_type: string; trigger_source: string
+  summary: string; status: 'open' | 'acknowledged' | 'resolved'; created_at: string
+  resolved_at: string | null; resolution_note: string | null
+}
+interface Props { patient: Patient; riskHistory: RiskRow[]; outcomeHistory: OutcomeRow[]; sessions: SessionRow[]; safetyPlans: SafetyRow[]; triageFlags?: TriageFlag[] }
 
 const RISK_CFG: Record<string, { color: string; bg: string; border: string; label: string }> = {
   low:      { color: '#1E40AF', bg: '#EFF6FF', border: '#BFDBFE', label: 'Low' },
@@ -57,9 +62,12 @@ function OutcomeSparkline({ data, measure }: { data: OutcomeRow[]; measure: stri
   )
 }
 
-export default function ClientProfile({ patient, riskHistory, outcomeHistory, sessions, safetyPlans }: Props) {
+export default function ClientProfile({ patient, riskHistory, outcomeHistory, sessions, safetyPlans, triageFlags = [] }: Props) {
+  const openFlags = triageFlags.filter(f => f.status !== 'resolved')
+  const openRedCount   = openFlags.filter(f => f.severity === 'red').length
+  const openAmberCount = openFlags.filter(f => f.severity === 'amber').length
   const router = useRouter()
-  const [tab, setTab] = useState<'overview' | 'risk' | 'outcomes' | 'sessions' | 'safety'>('overview')
+  const [tab, setTab] = useState<'overview' | 'risk' | 'outcomes' | 'sessions' | 'safety' | 'flags'>('overview')
   // ── Consent state — local optimistic update ──
   const [consentGiven, setConsentGiven]   = useState(patient.consent_given)
   const [consentDate, setConsentDate]     = useState(patient.consent_date)
@@ -117,9 +125,37 @@ export default function ClientProfile({ patient, riskHistory, outcomeHistory, se
         </button>
       </div>
 
+      {/* Open flags banner */}
+      {(openRedCount > 0 || openAmberCount > 0) && (
+        <div
+          onClick={() => setTab('flags')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '12px 16px', marginBottom: 14, borderRadius: 12,
+            background: openRedCount > 0 ? '#FEF2F2' : '#FFFBEB',
+            border: `0.5px solid ${openRedCount > 0 ? '#FECACA' : '#FDE68A'}`,
+            borderLeft: `3px solid ${openRedCount > 0 ? '#DC2626' : '#F59E0B'}`,
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: '1.15rem' }}>{openRedCount > 0 ? '🚩' : '⚠️'}</span>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: '0.875rem', fontWeight: 700, color: openRedCount > 0 ? '#B91C1C' : '#92400E', margin: 0 }}>
+              {openRedCount > 0 && `${openRedCount} urgent flag${openRedCount > 1 ? 's' : ''}`}
+              {openRedCount > 0 && openAmberCount > 0 && ' · '}
+              {openAmberCount > 0 && `${openAmberCount} review flag${openAmberCount > 1 ? 's' : ''}`}
+            </p>
+            <p style={{ fontSize: '0.78rem', color: openRedCount > 0 ? '#991B1B' : '#78350F', margin: '2px 0 0' }}>
+              Raised by patient activity — click to review and resolve.
+            </p>
+          </div>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: openRedCount > 0 ? '#B91C1C' : '#92400E' }}>Open →</span>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: '1.75rem', background: '#F7F5F0', border: '0.5px solid #E2DDD5', borderRadius: 14, padding: 4 }}>
-        {[{ id: 'overview', label: 'Overview' }, { id: 'risk', label: `Risk (${riskHistory.length})` }, { id: 'outcomes', label: `Scores (${outcomeHistory.length})` }, { id: 'sessions', label: `Sessions (${sessions.length})` }, { id: 'safety', label: `Safety plans (${safetyPlans.length})` }].map(t => (
+        {[{ id: 'overview', label: 'Overview' }, { id: 'flags', label: `Flags (${openFlags.length})` }, { id: 'risk', label: `Risk (${riskHistory.length})` }, { id: 'outcomes', label: `Scores (${outcomeHistory.length})` }, { id: 'sessions', label: `Sessions (${sessions.length})` }, { id: 'safety', label: `Safety plans (${safetyPlans.length})` }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)} style={{ flex: 1, padding: '9px 4px', borderRadius: 11, fontSize: '0.82rem', fontWeight: tab === t.id ? 700 : 500, cursor: 'pointer', fontFamily: 'Inter, sans-serif', border: 'none', transition: 'all 0.15s', background: tab === t.id ? '#fff' : 'transparent', color: tab === t.id ? '#2D6A4F' : '#8B8680', boxShadow: tab === t.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
             {t.label}
           </button>
@@ -422,6 +458,102 @@ export default function ClientProfile({ patient, riskHistory, outcomeHistory, se
             </div>
           ))}
         </div>
+      )}
+
+      {/* ── FLAGS TAB ── */}
+      {tab === 'flags' && (
+        <FlagsPanel flags={triageFlags} patientId={patient.id} />
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Triage flags sub-panel
+// ══════════════════════════════════════════════════════════════════════
+
+const FLAG_SEV_CFG: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
+  red:   { bg: '#FEF2F2', border: '#FECACA', text: '#B91C1C', dot: '#DC2626', label: 'Urgent' },
+  amber: { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', dot: '#F59E0B', label: 'Review' },
+  green: { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', dot: '#22C55E', label: 'Stable' },
+}
+
+function FlagsPanel({ flags }: { flags: TriageFlag[]; patientId: string }) {
+  const open     = flags.filter(f => f.status !== 'resolved')
+  const resolved = flags.filter(f => f.status === 'resolved')
+
+  if (flags.length === 0) {
+    return (
+      <div style={{ background: '#fff', border: '0.5px solid #E2DDD5', borderRadius: 16, padding: '3rem', textAlign: 'center' }}>
+        <p style={{ color: '#8B8680' }}>No triage flags recorded for this client.</p>
+        <p style={{ color: '#8B8680', fontSize: '0.8rem', marginTop: 6 }}>
+          Flags appear here when the client&apos;s self-assessments, chat messages, or safety events cross clinical thresholds.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {open.length > 0 && (
+        <section>
+          <p style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#8B8680', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Open · {open.length}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {open.map(f => <FlagRow key={f.id} flag={f} />)}
+          </div>
+        </section>
+      )}
+      {resolved.length > 0 && (
+        <section>
+          <p style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#8B8680', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Resolved · {resolved.length}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {resolved.map(f => <FlagRow key={f.id} flag={f} />)}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function FlagRow({ flag }: { flag: TriageFlag }) {
+  const c = FLAG_SEV_CFG[flag.severity] ?? FLAG_SEV_CFG.amber!
+  const isResolved = flag.status === 'resolved'
+  return (
+    <div style={{
+      background: '#fff',
+      border: `0.5px solid ${isResolved ? '#E2DDD5' : c.border}`,
+      borderLeft: isResolved ? '0.5px solid #E2DDD5' : `3px solid ${c.dot}`,
+      borderRadius: 10, padding: '12px 16px', opacity: isResolved ? 0.65 : 1,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '2px 8px', borderRadius: 20,
+          background: c.bg, color: c.text, border: `0.5px solid ${c.border}`,
+          fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot }} />
+          {c.label}
+        </span>
+        <span style={{ fontSize: '0.75rem', color: '#8B8680' }}>
+          {new Date(flag.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          {' · '}{flag.trigger_source.replace('_', ' ')}
+        </span>
+        {flag.status === 'acknowledged' && (
+          <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#6F6A64', padding: '2px 7px', borderRadius: 10, background: '#F3F1EC', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            Acknowledged
+          </span>
+        )}
+      </div>
+      <p style={{ marginTop: 5, fontSize: '0.875rem', color: '#3A3633', lineHeight: 1.5 }}>{flag.summary}</p>
+      {flag.resolution_note && (
+        <p style={{ marginTop: 6, padding: '6px 10px', background: '#F0FDF4', border: '0.5px solid #BBF7D0', borderRadius: 6, fontSize: '0.78rem', color: '#166534', fontStyle: 'italic' }}>
+          {flag.resolution_note}
+        </p>
       )}
     </div>
   )

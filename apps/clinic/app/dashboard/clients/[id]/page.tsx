@@ -1,6 +1,7 @@
 import { createServerClient, getTherapistId } from '../../../../utils/supabase/server'
 import ClientProfile from './ClientProfile'
 import { notFound } from 'next/navigation'
+import { listTriageFlags } from '../../../actions'
 
 export default async function ClientProfilePage({ params }: { params: { id: string } }) {
   const sb          = await createServerClient()
@@ -19,6 +20,8 @@ export default async function ClientProfilePage({ params }: { params: { id: stri
     : await patientQuery.single()
 
   if (!patient) notFound()
+
+  const triageRes = await listTriageFlags({ includeResolved: true, patientId: params.id })
 
   const [riskRes, outcomeRes, sessionRes, safetyRes] = await Promise.all([
     sb.from('cssrs_assessments')
@@ -66,6 +69,7 @@ export default async function ClientProfilePage({ params }: { params: { id: stri
       outcomeHistory={outcomeHistory}
       sessions={sessionRes.data || []}
       safetyPlans={safetyPlans}
+      triageFlags={triageRes.flags}
     />
   )
 }

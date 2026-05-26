@@ -8,8 +8,19 @@ import { findRelevantKnowledge, type KnowledgeChunk } from '../knowledge/cbt'
 // Crisis escalation built in — always routes to UK crisis resources
 // UK-GDPR: conversation content is not persisted beyond the session window
 // No patient identifying data is sent to OpenAI — only the message history
+//
+// Region pinning: OPENAI_BASE_URL must point to a UK / EU OpenAI Enterprise
+// endpoint or an Azure OpenAI UK South deployment in production. The OpenAI
+// SDK falls back to the default endpoint if OPENAI_BASE_URL is unset, which
+// is acceptable for local dev only. Production deployments MUST set this.
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+const openai = new OpenAI({
+  apiKey:  process.env.OPENAI_API_KEY!,
+  baseURL: process.env.OPENAI_BASE_URL,            // undefined → SDK default (dev only)
+  defaultHeaders: {
+    'OpenAI-Organization': process.env.OPENAI_ORG_ID ?? '',
+  },
+})
 
 const ORAII_SYSTEM_PROMPT = `You are ORAII (pronounced "or-eye"), a warm and supportive wellness companion within the ORAII patient portal.
 You help people reflect and care for their mental wellbeing between therapy sessions.

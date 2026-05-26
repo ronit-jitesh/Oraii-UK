@@ -6,9 +6,15 @@ import type { NoteFormat } from '@oraii/core'
 // British English throughout (behaviour not behavior, programme not program)
 // References: Mental Health Act 1983/2007/2025, NICE guidelines, BACP/UKCP frameworks
 // NOT: MHCA 2017 (Indian), CPT codes (American), Hinglish, NIMHANS protocols
+//
+// Region pinning: OPENAI_BASE_URL must point to a UK / EU OpenAI Enterprise
+// endpoint or an Azure OpenAI UK South deployment in production. The OpenAI
+// SDK falls back to the default endpoint if OPENAI_BASE_URL is unset, which
+// is acceptable for local dev only. Production deployments MUST set this.
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+  apiKey:  process.env.OPENAI_API_KEY!,
+  baseURL: process.env.OPENAI_BASE_URL,            // undefined → SDK default (dev only)
   defaultHeaders: {
     'OpenAI-Organization': process.env.OPENAI_ORG_ID ?? '',
   },

@@ -44,17 +44,32 @@ async function getData() {
     ? await apptQuery.eq('therapist_id', therapistId)
     : await apptQuery
 
-  // ── Risk alerts (last 7 days) ──
+  // ── Risk alerts ──
+  // Combines two sources: (1) clinician-led C-SSRS assessments rated
+  // moderate/high/imminent in the last 7 days, and (2) currently-open
+  // patient-side triage flags (red or amber) regardless of age. The
+  // dashboard's "Action Centre" should reflect anything still requiring
+  // a clinician's attention, not only what's been formally assessed.
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-  const riskQuery = supabase
+
+  const cssrsQuery = supabase
     .from('cssrs_assessments')
     .select('*', { count: 'exact', head: true })
     .in('clinician_risk_level', ['moderate', 'high', 'imminent'])
     .gte('assessed_at', sevenDaysAgo)
 
-  const { count: riskAlerts } = therapistId
-    ? await riskQuery.eq('therapist_id', therapistId)
-    : await riskQuery
+  const flagsQuery = supabase
+    .from('triage_flags')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'open')
+    .in('severity', ['red', 'amber'])
+
+  const [{ count: cssrsAlerts }, { count: openFlags }] = await Promise.all([
+    therapistId ? cssrsQuery.eq('therapist_id', therapistId) : cssrsQuery,
+    therapistId ? flagsQuery.eq('therapist_id', therapistId) : flagsQuery,
+  ])
+
+  const riskAlerts = (cssrsAlerts || 0) + (openFlags || 0)
 
   // ── Map to component shape ──
   const mappedPatients = (patients || []).map((p: any) => ({

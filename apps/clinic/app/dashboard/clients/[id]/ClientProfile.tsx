@@ -454,7 +454,14 @@ export default function ClientProfile({ patient, riskHistory, outcomeHistory, se
               </div>
               {sp.warning_signs?.length > 0 && <div style={{ marginBottom: 10 }}><p style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#8B8680', marginBottom: 5 }}>Warning signs</p>{sp.warning_signs.map((w, i) => <p key={i} style={{ fontSize: '0.875rem', color: '#1A1816', lineHeight: 1.55 }}>{w}</p>)}</div>}
               {sp.internal_coping_strategies?.length > 0 && <div style={{ marginBottom: 10 }}><p style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#8B8680', marginBottom: 5 }}>Coping strategies</p>{sp.internal_coping_strategies.map((w, i) => <p key={i} style={{ fontSize: '0.875rem', color: '#1A1816' }}>{w}</p>)}</div>}
-              {sp.crisis_contacts?.length > 0 && <div><p style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#8B8680', marginBottom: 5 }}>Crisis contacts</p>{sp.crisis_contacts.map((c: any, i: number) => <p key={i} style={{ fontSize: '0.875rem', color: '#1A1816' }}>{c.note || JSON.stringify(c)}</p>)}</div>}
+              {sp.crisis_contacts?.length > 0 && <div><p style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#8B8680', marginBottom: 5 }}>Crisis contacts</p>{sp.crisis_contacts.map((c: any, i: number) => {
+                // Format as "Name · Phone" if structured, fall back to note or string
+                const label = typeof c === 'string'
+                  ? c
+                  : c?.name && c?.phone ? `${c.name} · ${c.phone}`
+                  : c?.name || c?.phone || c?.note || ''
+                return <p key={i} style={{ fontSize: '0.875rem', color: '#1A1816' }}>{label}</p>
+              })}</div>}
             </div>
           ))}
         </div>
@@ -473,7 +480,7 @@ export default function ClientProfile({ patient, riskHistory, outcomeHistory, se
 // ══════════════════════════════════════════════════════════════════════
 
 const FLAG_SEV_CFG: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
-  red:   { bg: '#FEF2F2', border: '#FECACA', text: '#B91C1C', dot: '#DC2626', label: 'Urgent' },
+  red:   { bg: '#FEF2F2', border: '#FECACA', text: '#B91C1C', dot: '#DC2626', label: 'For review' },
   amber: { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', dot: '#F59E0B', label: 'Review' },
   green: { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', dot: '#22C55E', label: 'Stable' },
 }

@@ -191,7 +191,7 @@ export default function Dashboard({ initialPatients, stats, therapistName }: Pro
                   {stats.recentRiskAlerts}
                 </div>
                 <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3 }}>
-                  Risk alerts
+                  Flagged for review
                 </div>
               </div>
             </div>
@@ -483,7 +483,7 @@ export default function Dashboard({ initialPatients, stats, therapistName }: Pro
                       <Ico d={I.warn} size={15} color="#DC2626" />
                     </div>
                     <div>
-                      <p style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: '#DC2626', letterSpacing: '0.04em' }}>Risk alerts</p>
+                      <p style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: '#DC2626', letterSpacing: '0.04em' }}>Flagged for review</p>
                       <p style={{ fontSize: '0.825rem', fontWeight: 500, color: '#9B2C2C', marginTop: 1 }}>
                         {stats.recentRiskAlerts} case{(stats.recentRiskAlerts ?? 0) > 1 ? 's' : ''} flagged
                       </p>

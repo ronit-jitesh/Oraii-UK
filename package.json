@@ -13,7 +13,8 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "seed:demo": "node infra/scripts/seed-demo.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.469.0",

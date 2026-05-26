@@ -157,7 +157,7 @@ export function classifyTextForRisk(text: string): TriageVerdict | null {
  */
 export function severityLabel(sev: TriageSeverity): string {
   switch (sev) {
-    case 'red':   return 'Urgent'
+    case 'red':   return 'For review'
     case 'amber': return 'Review'
     case 'green': return 'Stable'
   }

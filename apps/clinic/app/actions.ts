@@ -2,6 +2,12 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '../utils/supabase/server'
+import {
+  classifyPHQ9,
+  classifyGAD7,
+  createTriageFlag,
+  type TriageTriggerSource,
+} from '@oraii/core/triage'
 
 function getSvc() {
   return createClient(
@@ -168,7 +174,14 @@ export async function generateClinicalNote(transcript: string, format: NoteForma
   if (!transcript || transcript.length < 10) return { error: 'Transcript too short.' }
   if (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.startsWith('your')) {
     try {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      // Region pinning: OPENAI_BASE_URL must point to a UK/EU endpoint in
+      // production (OpenAI Enterprise EU or Azure OpenAI UK South). Unset =
+      // SDK default (dev only).
+      const openai = new OpenAI({
+        apiKey:  process.env.OPENAI_API_KEY,
+        baseURL: process.env.OPENAI_BASE_URL,
+        defaultHeaders: { 'OpenAI-Organization': process.env.OPENAI_ORG_ID ?? '' },
+      })
       const res = await openai.chat.completions.create({
         model: 'gpt-4o', max_tokens: 2500, temperature: 0.2,
         response_format: { type: 'json_object' },
@@ -375,6 +388,8 @@ export async function saveOutcomeScore(data: {
   try {
     const svc = getSvc()
     const therapistId = await getOrCreateTherapistId()
+    if (!therapistId) return { error: 'Not authenticated' }
+
     const { data: saved, error } = await svc.from('outcome_scores').insert({
       patient_id:      data.patientId,
       therapist_id:    therapistId,
@@ -391,6 +406,77 @@ export async function saveOutcomeScore(data: {
       metadata: { instrument: data.instrument, score: data.score },
     })
 
+    // ── Consolidated triage flag (one per patient) ─────────────────
+    // Fetch the patient's latest PHQ-9 + GAD-7 scores, compute overall
+    // severity, and upsert a single flag so the queue shows one row per
+    // patient — not one per individual score submission.
+    try {
+      // Fetch latest PHQ-9
+      const { data: latestPHQ9 } = await svc.from('outcome_scores')
+        .select('score, responses')
+        .eq('patient_id', data.patientId)
+        .eq('instrument', 'PHQ-9')
+        .order('administered_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      // Fetch latest GAD-7
+      const { data: latestGAD7 } = await svc.from('outcome_scores')
+        .select('score')
+        .eq('patient_id', data.patientId)
+        .eq('instrument', 'GAD-7')
+        .order('administered_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      const phq9Score = latestPHQ9?.score ?? null
+      const gad7Score = latestGAD7?.score ?? null
+      const q9 = latestPHQ9?.responses?.q9 ?? latestPHQ9?.responses?.['9'] ?? undefined
+
+      // Compute consolidated severity
+      const phq9Band = (s: number) => s >= 20 ? 'Severe' : s >= 15 ? 'Moderately severe' : s >= 10 ? 'Moderate' : s >= 5 ? 'Mild' : 'Minimal'
+      const gad7Band = (s: number) => s >= 15 ? 'Severe' : s >= 10 ? 'Moderate' : s >= 5 ? 'Mild' : 'Minimal'
+
+      let severity: 'red' | 'amber' | 'green' = 'green'
+      let flagType = 'phq9_high'
+
+      if (typeof q9 === 'number' && q9 >= 1) {
+        severity = 'red'; flagType = 'phq9_q9_positive'
+      } else if ((phq9Score ?? 0) >= 20 || (gad7Score ?? 0) >= 15) {
+        severity = 'red'; flagType = (phq9Score ?? 0) >= 20 ? 'phq9_severe' : 'gad7_severe'
+      } else if ((phq9Score ?? 0) >= 10 || (gad7Score ?? 0) >= 10) {
+        severity = 'amber'; flagType = (phq9Score ?? 0) >= (gad7Score ?? 0) ? 'phq9_high' : 'gad7_high'
+      }
+
+      const summary = typeof q9 === 'number' && q9 >= 1
+        ? `PHQ-9 Q9 positive (self-harm ideation) · PHQ-9 ${phq9Score ?? '—'} (${phq9Score != null ? phq9Band(phq9Score) : '—'}) · GAD-7 ${gad7Score ?? '—'} (${gad7Score != null ? gad7Band(gad7Score) : '—'})`
+        : `PHQ-9 ${phq9Score ?? '—'} (${phq9Score != null ? phq9Band(phq9Score) : '—'}) · GAD-7 ${gad7Score ?? '—'} (${gad7Score != null ? gad7Band(gad7Score) : '—'})`
+
+      // Delete any existing outcome_scores flag for this patient, then insert fresh
+      await svc.from('triage_flags')
+        .delete()
+        .eq('patient_id', data.patientId)
+        .eq('therapist_id', therapistId)
+        .eq('trigger_source', 'outcome_scores')
+
+      await svc.from('triage_flags').insert({
+        patient_id:     data.patientId,
+        therapist_id:   therapistId,
+        severity,
+        flag_type:      flagType,
+        summary,
+        trigger_source: 'outcome_scores',
+        source_id:      null,
+        trigger_data:   { phq9: phq9Score, gad7: gad7Score, consolidated: true },
+        status:         'open',
+      })
+    } catch (flagErr) {
+      // Flag failure must not block saving the score itself
+      console.error('[saveOutcomeScore] triage flag suppressed:', flagErr)
+    }
+
+    revalidatePath('/dashboard/queue')
+    revalidatePath('/dashboard')
     return { success: true }
   } catch (e) { return { error: `Failed: ${e instanceof Error ? e.message : String(e)}` } }
 }

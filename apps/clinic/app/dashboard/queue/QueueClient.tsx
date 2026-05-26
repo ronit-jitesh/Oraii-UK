@@ -83,10 +83,10 @@ export function QueueClient({
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: '1.875rem', fontWeight: 600, color: '#1A1816', margin: 0 }}>
-              Triage Queue
+              Review Queue
             </h1>
             <p style={{ marginTop: 4, fontSize: '0.875rem', color: '#6F6A64' }}>
-              Red / amber flags raised by patient activity — reviewed here, resolved against the record.
+              Flags raised by patient self-assessments — reviewed here, resolved against the record.
             </p>
           </div>
           <Link
@@ -113,7 +113,7 @@ export function QueueClient({
         <FilterChip
           active={filter === 'red'}
           onClick={() => setFilter('red')}
-          label="Urgent"
+          label="For review"
           count={counts.red}
           color="#DC2626"
         />

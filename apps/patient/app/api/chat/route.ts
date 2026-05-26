@@ -80,6 +80,10 @@ export async function POST(request: NextRequest) {
     const windowed = safe.slice(-MAX_HISTORY_TURNS)
 
     // ── 6. Primary: OpenAI via @oraii/ai (CBT-oriented system prompt) ──────
+    // No fallback to non-EU providers. UK-GDPR requires that PHI does not
+    // leak to processors without a signed DPA + EU/UK data residency. Groq
+    // is US-hosted with no UK DPA — we deliberately do not fall through to
+    // it. If OpenAI fails, return a graceful holding message.
     if (process.env.OPENAI_API_KEY) {
       try {
         const res = await generateOraiiResponse(windowed)
@@ -89,43 +93,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 7. Fallback: Groq free tier ────────────────────────────────────────
-    if (process.env.GROQ_API_KEY) {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are ORAII, a warm CBT-informed wellness companion (not a therapist). Use British English, reflective listening, and open-ended questions. Keep replies to 2–3 short paragraphs. Never diagnose. If the user mentions self-harm or suicide, signpost UK crisis services (Samaritans 116 123, NHS 111 press 2, SHOUT text 85258, 999).',
-            },
-            ...windowed,
-          ],
-          max_tokens: 500,
-          temperature: 0.72,
-        }),
-      })
-      if (r.ok) {
-        const data = await r.json()
-        return NextResponse.json({
-          content:
-            data.choices?.[0]?.message?.content ||
-            "I'm here with you. Could you tell me a bit more about what's on your mind?",
-          crisisDetected: false,
-        })
-      }
-    }
-
-    // ── 8. Last-resort fallback ────────────────────────────────────────────
+    // ── 7. Graceful fallback (no PHI leaves the EU boundary) ───────────────
     return NextResponse.json({
       content:
-        "I'm having trouble reaching my full capabilities right now. Let's keep going — can you tell me a bit more about what's coming up for you? If you need support right now, Samaritans are free on 116 123.",
+        "I'm having a bit of trouble connecting right now — let's pause and try again in a minute. If you need support immediately, Samaritans are free on 116 123, or text SHOUT to 85258. If you're in danger, please call 999.",
       crisisDetected: false,
     })
   } catch (error) {

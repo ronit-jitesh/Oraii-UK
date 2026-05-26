@@ -3,9 +3,16 @@
   "configurations": [
     {
       "name": "clinic",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["turbo", "run", "dev", "--filter=clinic"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:clinic"],
       "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "patient",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:patient"],
+      "port": 3001,
       "autoPort": false
     }
   ]
